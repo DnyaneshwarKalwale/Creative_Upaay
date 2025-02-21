@@ -1,21 +1,26 @@
-
-import React, { useState } from 'react';
-
-// Initial tasks data
-const initialTasks = [
-  { id: 'task-1', title: 'Brainstorming', status: 'todo', priority: 'Low', description: 'Brainstorming brings team members diverse experience into play.' },
-  { id: 'task-2', title: 'Design System', status: 'done', priority: 'Completed', description: 'Creatvie Upaay task.' },
-  { id: 'task-3', title: 'Brainstorming', status: 'inProgress', priority: 'High', description: 'Brainstorming brings team members diverse experience into play.' },
-  { id: 'task-4', title: 'Brainstorming', status: 'todo', priority: 'Low', description: 'Brainstorming brings team members diverse experience into play.' },
-  { id: 'task-5', title: 'Design System', status: 'done', priority: 'Completed', description: 'Creatvie Upaay task.' },
-  { id: 'task-6', title: 'Brainstorming', status: 'inProgress', priority: 'Low', description: 'Brainstorming brings team members diverse experience into play.' },
-];
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 
 // MainSection component
 function MainSection() {
-  const [tasks, setTasks] = useState(initialTasks);
+  const [tasks, setTasks] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [newTask, setNewTask] = useState({ title: '', priority: 'Low', description: '' });
+  const [editingTask, setEditingTask] = useState(null); // Track the task being edited
+
+  // Fetch tasks from the backend
+  useEffect(() => {
+    fetchTasks();
+  }, []);
+
+  const fetchTasks = async () => {
+    try {
+      const response = await axios.get('https://gyaan.onrender.com/');
+      setTasks(response.data);
+    } catch (error) {
+      console.error('Error fetching tasks:', error);
+    }
+  };
 
   // Handle drag start
   const handleDragStart = (e, taskId) => {
@@ -28,33 +33,67 @@ function MainSection() {
   };
 
   // Handle drop
-  const handleDrop = (e, status) => {
+  const handleDrop = async (e, status) => {
     const taskId = e.dataTransfer.getData('taskId');
-    const updatedTasks = tasks.map((task) =>
-      task.id === taskId ? { ...task, status } : task
-    );
-    setTasks(updatedTasks);
+    try {
+      await axios.patch(`https://gyaan.onrender.com/update_todo/${taskId}`, { status });
+      fetchTasks(); // Refresh tasks after update
+    } catch (error) {
+      console.error('Error updating task status:', error);
+    }
   };
 
   // Add task
   const handleAddTask = () => {
     setShowForm(true);
+    setEditingTask(null); // Reset editing task when adding a new one
   };
 
-  // Form submission
-  const handleSubmit = (e) => {
+  // Form submission for adding/editing a task
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    const newTaskId = `task-${tasks.length + 1}`;
-    const newTaskObj = { id: newTaskId, title: newTask.title, status: 'todo', priority: newTask.priority, description: newTask.description };
-    setTasks([...tasks, newTaskObj]);
-    setShowForm(false);
-    setNewTask({ title: '', priority: 'Low', description: '' });
+    try {
+      if (editingTask) {
+        // Update existing task
+        await axios.patch(`https://gyaan.onrender.com/update_todo/${editingTask._id}`, {
+          title: newTask.title,
+          priority: newTask.priority,
+          description: newTask.description,
+        });
+      } else {
+        // Add new task
+        await axios.post('https://gyaan.onrender.com/todo_send', {
+          no: `task-${tasks.length + 1}`,
+          title: newTask.title,
+          status: 'todo',
+          priority: newTask.priority,
+          description: newTask.description,
+        });
+      }
+      fetchTasks(); // Refresh tasks after adding/updating
+      setShowForm(false);
+      setNewTask({ title: '', priority: 'Low', description: '' });
+      setEditingTask(null); // Reset editing task
+    } catch (error) {
+      console.error('Error adding/updating task:', error);
+    }
   };
 
   // Remove task
-  const handleRemoveTask = (taskId) => {
-    const newTasks = tasks.filter((task) => task.id !== taskId);
-    setTasks(newTasks);
+  const handleRemoveTask = async (taskId) => {
+    try {
+      await axios.delete(`https://gyaan.onrender.com/delete/${taskId}`);
+      fetchTasks(); // Refresh tasks after deletion
+    } catch (error) {
+      console.error('Error deleting task:', error);
+    }
+  };
+
+  // Edit task
+  const handleEditTask = (task) => {
+    setEditingTask(task); // Set the task being edited
+    setNewTask({ title: task.title, priority: task.priority, description: task.description });
+    setShowForm(true); // Show the form
   };
 
   return (
@@ -79,7 +118,7 @@ function MainSection() {
               )}
             </div>
             <div className={`border-t-4 ${status === 'todo' ? 'border-purple-500' : status === 'inProgress' ? 'border-orange-500' : 'border-green-500'} mb-2`}></div>
-            {status === 'todo' && showForm && (
+            {(status === 'todo' && showForm) && (
               <form onSubmit={handleSubmit} className="mb-4">
                 <input
                   type="text"
@@ -87,31 +126,38 @@ function MainSection() {
                   onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
                   className="w-full p-2 mb-2 border border-gray-400 rounded"
                   placeholder="Task title"
+                  required
                 />
                 <textarea
                   value={newTask.description}
                   onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
                   className="w-full p-2 mb-2 border border-gray-400 rounded"
                   placeholder="Task description"
+                  required
                 />
                 <select
                   value={newTask.priority}
                   onChange={(e) => setNewTask({ ...newTask, priority: e.target.value })}
                   className="w-full p-2 mb-2 border border-gray-400 rounded"
+                  required
                 >
                   <option value="Low">Low</option>
                   <option value="Medium">Medium</option>
                   <option value="High">High</option>
                 </select>
                 <button type="submit" className="w-full p-2 bg-blue-500 text-white rounded">
-                  Add Task
+                  {editingTask ? 'Update Task' : 'Add Task'}
                 </button>
               </form>
             )}
             <div>
-              {tasks .filter((task) => task.status === status).map((task) => (
-                  <div key={task.id} draggable
-                    onDragStart={(e) => handleDragStart(e, task.id)}
+              {tasks
+                .filter((task) => task.status === status)
+                .map((task) => (
+                  <div
+                    key={task._id} // Use _id from MongoDB
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, task._id)}
                     className="bg-white p-3 rounded-lg shadow border-2 my-4 flex justify-between"
                     style={{ borderColor: status === 'todo' ? 'red' : status === 'inProgress' ? 'blue' : 'green' }}
                   >
@@ -126,19 +172,29 @@ function MainSection() {
                       {status !== 'done' && (
                         <button
                           className="text-gray-800 text-lg font-bold hover mr-2"
-                          onClick={() => {
-                            const updatedTasks = tasks.map((t) =>
-                              t.id === task.id ? { ...t, status: status === 'todo' ? 'inProgress' : 'done' } : t
-                            );
-                            setTasks(updatedTasks);
+                          onClick={async () => {
+                            try {
+                              await axios.patch(`https://gyaan.onrender.com/update_todo/${task._id}`, {
+                                status: status === 'todo' ? 'inProgress' : 'done',
+                              });
+                              fetchTasks(); // Refresh tasks after update
+                            } catch (error) {
+                              console.error('Error updating task status:', error);
+                            }
                           }}
                         >
                           →
                         </button>
                       )}
                       <button
+                        className="text-gray-800 text-lg font-bold hover mr-2"
+                        onClick={() => handleEditTask(task)} // Edit task
+                      >
+                        ✎
+                      </button>
+                      <button
                         className="text-gray-800 text-lg font-bold hover"
-                        onClick={() => handleRemoveTask(task.id)}
+                        onClick={() => handleRemoveTask(task._id)} // Use _id from MongoDB
                       >
                         -
                       </button>
