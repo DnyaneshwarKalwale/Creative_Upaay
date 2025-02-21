@@ -98,7 +98,7 @@ function MainSection() {
 
   return (
     <div className="p-6 w-full">
-      <h1 className="text-2xl font-bold mb-4">Mobile App</h1>
+      <h1 className="text-2xl font-bold mb-4">TODO APP</h1>
       <div className="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4">
         {['todo', 'inProgress', 'done'].map((status) => (
           <div
